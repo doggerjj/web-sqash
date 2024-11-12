@@ -8,7 +8,6 @@ from erendil.models.data_models import StoplossParams
 class TrailingStoploss(BaseIndicator):
     def __init__(self, params: Optional[StoplossParams] = None):
         self.params = params or StoplossParams()
-        self.prev_stoploss = None
     
     def calculate_atr(self, df: pl.DataFrame) -> np.ndarray:
         """Calculate ATR"""
@@ -33,20 +32,20 @@ class TrailingStoploss(BaseIndicator):
         
         return atr
     
-    def process_data(self, df: pl.DataFrame) -> Tuple[np.ndarray, float]:
+    def process_data(self, df: pl.DataFrame) -> Tuple[np.ndarray, float, float]:
         """
-        Process data and return trailing stoploss array and current value
+        Process data and return trailing stoploss array and values
         Returns:
-            Tuple of (stoploss array, current stoploss value)
+            Tuple of (stoploss array, current ts, previous ts)
         """
         if len(df) < max(self.params.atr_period, self.params.hhv_period):
-            return np.array([]), 0.0
-        
-        # Calculate ATR
+            return np.array([]), 0.0, 0.0
+            
+        close = df['close'].to_numpy()
+        high = df['high'].to_numpy()
         atr = self.calculate_atr(df)
         
         # Calculate offset (high - multiplier * ATR)
-        high = df['high'].to_numpy()
         offset = high - (self.params.multiplier * atr)
         
         # Calculate highest values over HHV period
@@ -55,15 +54,20 @@ class TrailingStoploss(BaseIndicator):
             start_idx = max(0, i - self.params.hhv_period + 1)
             highest[i] = np.max(offset[start_idx:i+1])
         
-        # Calculate trailing stoploss
-        close = df['close'].to_numpy()
+        # Initialize prev array
+        prev = np.copy(highest)
+        
+        # Calculate trailing stoploss exactly as in PineScript
         ts = np.zeros_like(close)
-        ts[0] = close[0]
         
-        for i in range(1, len(close)):
-            if close[i] > highest[i] and close[i] > close[i-1]:
-                ts[i] = highest[i]
+        for i in range(len(close)):
+            if i < 16:  # cum_1 < 16 condition
+                ts[i] = close[i]
             else:
-                ts[i] = ts[i-1]
-        
-        return ts, ts[-1]
+                condition = (close[i] > highest[i] and 
+                           close[i] > close[i-1])
+                ts[i] = highest[i] if condition else prev[i]
+                
+            prev[i+1:] = ts[i]  # Update prev for next iterations
+            
+        return ts, ts[-1], ts[-2] if len(ts) > 1 else ts[-1]

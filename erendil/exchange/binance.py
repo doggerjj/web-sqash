@@ -21,7 +21,8 @@ class BinanceKlineManager:
         self,
         symbol: str,
         interval: str,
-        callback: Callable[[pl.DataFrame], None],
+        onclose_callback: Callable[[pl.DataFrame], None],
+        onmessage_callback: Callable[[pl.DataFrame], None],
         limit: int = 1000,
         retry_delay: int = 5,
         max_retries: int = 3,
@@ -32,23 +33,24 @@ class BinanceKlineManager:
         
         Args:
             symbol: Trading pair symbol (e.g., 'btcusdt')
-            interval: Kline interval (e.g., '1m', '5m', '1h')
-            callback: Function to process the data
+            interval: Kline interval (e.g., '1m', '5m', '1h', '2h', '1d', '1w', '1M')
+            onclose_callback: Function to execute when the connection is closed
+            onmessage_callback: Function to execute when a message is received
             limit: Maximum number of historical klines to fetch
             retry_delay: Delay between retries in seconds
             max_retries: Maximum number of retry attempts
             semaphore_limit: Maximum number of concurrent requests
         """
-        self.symbol = symbol.lower()
-        self.interval = interval
         self.limit = limit
-        self.callback = callback
+        self.is_running = False
+        self.interval = interval
+        self.symbol = symbol.lower()
         self.retry_delay = retry_delay
         self.max_retries = max_retries
-        self.request_semaphore = asyncio.Semaphore(semaphore_limit)
-        
+        self.onclose_callback = onclose_callback
+        self.onmessage_callback = onmessage_callback
         self.historical_data: Optional[pl.DataFrame] = None
-        self.is_running = False
+        self.request_semaphore = asyncio.Semaphore(semaphore_limit)
         
         # API endpoints
         self.base_rest_url = f"{BINANCE_BASE_URL}/api/v3"
@@ -157,8 +159,7 @@ class BinanceKlineManager:
                     .tail(self.limit)
                 )
                 
-                logger.info(f"Fetched {len(self.historical_data)} historical klines")
-                await self.process_data()
+                logger.debug(f"Fetched {len(self.historical_data)} historical klines")
             else:
                 logger.warning("No historical data retrieved")
             
@@ -192,11 +193,11 @@ class BinanceKlineManager:
     ) -> List[KlineData]:
         """Fetch a single batch of klines"""
         params = {
-            "symbol": self.symbol.upper(),
-            "interval": self.interval,
             "limit": 1000,
+            "endTime": end_time,
             "startTime": start_time,
-            "endTime": end_time
+            "interval": self.interval,
+            "symbol": self.symbol.upper(),
         }
         async with self.request_semaphore:
             try:
@@ -222,37 +223,39 @@ class BinanceKlineManager:
                 logger.error(f"Error fetching batch {start_time}-{end_time}: {e}")
                 return []
     
-    async def process_data(self) -> None:
-        """Process the current state of data using the callback"""
+    async def process_data_onmessage(self) -> None:
+        """Process data received from the websocket"""
         if self.historical_data is not None:
             try:
-                await asyncio.create_task(
+                asyncio.create_task(
                 asyncio.to_thread(
-                    self.callback, 
+                    self.onmessage_callback, 
                     self.historical_data
                 )
             )
             except Exception as e:
                 logger.error(f"Error in callback processing: {e}")
     
-    async def process_realtime_price(self, price: float) -> None:
-        """Process realtime price updates"""
+    async def process_data_onclose(self) -> None:
+        """Process data received from the websocket on candle close"""
         if self.historical_data is not None:
-            df_copy = self.historical_data.clone()
-            df_copy = df_copy.with_columns(pl.lit(price).alias("close").cast(pl.Float64))
-            await self.process_data()
+            try:
+                asyncio.create_task(
+                asyncio.to_thread(
+                    self.onclose_callback, 
+                    self.historical_data
+                )
+            )
+            except Exception as e:
+                logger.error(f"Error in callback processing: {e}")
     
     async def _handle_websocket_message(self, message: str) -> None:
         """Handle incoming websocket messages"""
         try:
             ws_data = WebsocketKline.model_validate_json(message)
             
-            # Process realtime price for trailing stoploss
-            current_price = float(ws_data.kline['c'])
-            await self.process_realtime_price(current_price)
-            
             # Process completed candles
-            if ws_data.kline.get('x', False):
+            if ws_data.kline.get('x', False):  # Candle closed
                 kline_data = ws_data.to_kline_data
                 new_row = self.kline_to_polars(kline_data)
                 
@@ -261,12 +264,21 @@ class BinanceKlineManager:
                     new_row
                 ])
                 
-                logger.info(
+                logger.debug(
                     f"New kline added - Time: {self.convert_to_ist(kline_data.close_time)}, "
                     f"Close: {kline_data.close_price:.2f}"
                 )
                 
-                await self.process_data()
+                await self.process_data_onclose()
+            
+            
+            # Process real-time price updates only if candle is not closing
+            else:
+                current_price = float(ws_data.kline['c'])
+                if self.historical_data is not None:
+                    df_copy = self.historical_data.clone()
+                    df_copy = df_copy.with_columns(pl.lit(current_price).alias("close").cast(pl.Float64))
+                    await self.process_data_onmessage()
                 
         except Exception as e:
             logger.error(f"Error processing websocket message: {e}")
@@ -334,15 +346,18 @@ class BinanceExchange:
         self,
         symbol: str,
         interval: str,
-        callback: Callable[[pl.DataFrame], None],
+        onclose_callback: Callable[[pl.DataFrame], None],
+        onmessage_callback: Callable[[pl.DataFrame], None],
         limit: int = 1000,
     ) -> None:
         """Add a new symbol stream"""
+        symbol = symbol.lower()
         manager = BinanceKlineManager(
             limit=limit,
             symbol=symbol,
             interval=interval,
-            callback=callback,
+            onclose_callback=onclose_callback,
+            onmessage_callback=onmessage_callback
         )
         self.kline_managers[symbol] = manager
         

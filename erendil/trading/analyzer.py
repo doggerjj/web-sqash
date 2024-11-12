@@ -8,12 +8,9 @@ from erendil.indicators.trailing_stop import TrailingStoploss
 
 
 class EnhancedMarketAnalyzer:
-    def __init__(self, symbol: str):
-        self.symbol = symbol
+    def __init__(self):
         self.stoploss = TrailingStoploss()
         self.indicator = BuySellIndicator()
-        self.last_signal: Optional[str] = None
-        self.position_manager = PositionManager()
         
     def _get_latest_values(self, df: pl.DataFrame) -> Tuple[float, datetime]:
         """Get latest price and timestamp from DataFrame"""
@@ -28,43 +25,35 @@ class EnhancedMarketAnalyzer:
             return None, None
         
         hist_buy, hist_sell = self.indicator.process_data(df)
-        ts_array, current_ts = self.stoploss.process_data(df)
+        ts_array, current_ts, prev_ts = self.stoploss.process_data(df)
         current_price, latest_timestamp = self._get_latest_values(df)
         
         signal = None
         
-        if self.position_manager.position == 0.5:
-            if current_price < ts_array[-2]:
-                signal = MarketSignal(
-                    action="SELL_REMAINING",
-                    price=current_price,
-                    timestamp=latest_timestamp,
-                    reason="Trailing stoploss hit"
-                )
-                self.position_manager.reset()
-                return signal, current_ts
-        
-        # Check for initial sell signal
-        if (self.indicator.check_sell_signal(hist_sell) and 
-            self.position_manager.position == 1):
-            self.position_manager.position = 0.5
-            self.position_manager.trailing_stoploss = current_ts
+        # Check for signals using previous candle's trailing stop
+        if current_price < prev_ts:  # Using previous candle's trailing stop
             signal = MarketSignal(
-                action="SELL_HALF",
+                action="SELL",
                 price=current_price,
                 timestamp=latest_timestamp,
-                reason="Sell signal detected"
+                reason="Trailing stoploss hit"
             )
-        
-        # Check for buy signal
-        elif (self.indicator.check_buy_signal(hist_buy) and 
-              self.position_manager.position == 0):
-            self.position_manager.position = 1
-            signal = MarketSignal(
+            return signal, current_ts
+
+        elif self.indicator.check_buy_signal(hist_buy):
+            return MarketSignal(
                 action="BUY",
                 price=current_price,
                 timestamp=latest_timestamp,
                 reason="Buy signal detected"
-            )
-        
+            ), current_ts
+            
+        elif self.indicator.check_sell_signal(hist_sell):
+            return MarketSignal(
+                action="SELL",
+                price=current_price,
+                timestamp=latest_timestamp,
+                reason="Sell signal detected"
+            ), current_ts
+            
         return signal, current_ts
