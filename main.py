@@ -2,6 +2,7 @@ import asyncio
 import logging
 import polars as pl
 from erendil.core.config import settings
+from datetime import datetime, timedelta, timezone
 from erendil.exchange.binance import BinanceExchange
 from erendil.trading.analyzer import EnhancedMarketAnalyzer
 
@@ -10,15 +11,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def example_callback(df: pl.DataFrame):
+def example_callback(df: pl.DataFrame):
     """Example callback for processing kline data"""
-    logger.info(f"Processing {len(df)} klines")
+    def convert_to_ist(utc_time: datetime) -> datetime:
+        """Convert UTC datetime to IST datetime"""
+        ist = timezone(timedelta(hours=5, minutes=30))
+        return utc_time.astimezone(ist)
+    
+    logger.debug(f"Processing {len(df)} klines")
     analyzer = EnhancedMarketAnalyzer(settings.default_symbol)
     signal, stoploss = analyzer.calculate_signals(df)
     
     if signal:
         print(
-            f"Signal: {signal.action} at {signal.timestamp}, "
+            f"Signal: {signal.action} at {convert_to_ist(signal.timestamp)}, "
             f"Price: {signal.price:.2f}, Reason: {signal.reason}"
         )
         if signal.action == "SELL_HALF":

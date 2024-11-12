@@ -4,8 +4,8 @@ import logging
 import asyncio
 import websockets
 import polars as pl
-from datetime import datetime, timezone
 from erendil.core.config import settings
+from datetime import datetime, timezone, timedelta
 from websockets.exceptions import ConnectionClosed
 from typing import Optional, Callable, Dict, Any, List
 from erendil.models.exceptions import BinanceAPIException
@@ -58,6 +58,11 @@ class BinanceKlineManager:
         self.headers = {}
         if settings.binance_api_key:
             self.headers["X-MBX-APIKEY"] = settings.binance_api_key
+            
+    def convert_to_ist(self, utc_time: datetime) -> datetime:
+        """Convert UTC datetime to IST datetime"""
+        ist = timezone(timedelta(hours=5, minutes=30))
+        return utc_time.astimezone(ist)
             
     def kline_to_polars(self, kline: KlineData) -> pl.DataFrame:
         """Convert KlineData to Polars DataFrame"""
@@ -221,7 +226,12 @@ class BinanceKlineManager:
         """Process the current state of data using the callback"""
         if self.historical_data is not None:
             try:
-                await asyncio.create_task(self.callback(self.historical_data))
+                await asyncio.create_task(
+                asyncio.to_thread(
+                    self.callback, 
+                    self.historical_data
+                )
+            )
             except Exception as e:
                 logger.error(f"Error in callback processing: {e}")
     
@@ -235,7 +245,7 @@ class BinanceKlineManager:
     async def _handle_websocket_message(self, message: str) -> None:
         """Handle incoming websocket messages"""
         try:
-            ws_data = WebsocketKline.parse_raw(message)
+            ws_data = WebsocketKline.model_validate_json(message)
             
             # Process realtime price for trailing stoploss
             current_price = float(ws_data.kline['c'])
@@ -252,7 +262,7 @@ class BinanceKlineManager:
                 ])
                 
                 logger.info(
-                    f"New kline added - Time: {kline_data.close_time}, "
+                    f"New kline added - Time: {self.convert_to_ist(kline_data.close_time)}, "
                     f"Close: {kline_data.close_price:.2f}"
                 )
                 
