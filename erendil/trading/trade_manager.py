@@ -106,7 +106,7 @@ class TradeManager:
         
         # Check if max buys limit reached
         if self.buy_count >= self.max_buys:
-            logger.info(f"Max buys ({self.max_buys}) reached, skipping buy signal at price {signal.price}")
+            # logger.info(f"Max buys ({self.max_buys}) reached, skipping buy signal at price {signal.price}")
             return
         
         # Calculate fee for buying
@@ -208,11 +208,11 @@ class TradeManager:
         signal, trailing_stoploss = self.analyzer.calculate_signals(df)
         if signal:
             if signal.action == "BUY":
-                logger.info(f"Buy signal detected at candle close: Price={signal.price}")
+                # logger.info(f"Buy signal detected at candle close: Price={signal.price}")
                 self.buy(signal)
             elif (signal.action == "SELL") and (signal.reason == "Sell signal detected"):
                 if self.position_log.position > 0:
-                    logger.info(f"Sell signal detected at candle close: Price={signal.price}")
+                    # logger.info(f"Sell signal detected at candle close: Price={signal.price}")
                     self.sell(signal, trailing_stoploss)
     
     def handle_price_update(self, df):
@@ -220,7 +220,7 @@ class TradeManager:
         if signal:
             if (signal.action == "SELL") and (signal.reason == "Trailing stoploss hit"):
                 if self.position_log.first_exit_price is not None:
-                    logger.info(f"Trailing stop triggered at price {signal.price}")
+                    # logger.info(f"Trailing stop triggered at price {signal.price}")
                     self.sell(signal, trailing_stoploss)
                     
     def cleanup(self):
