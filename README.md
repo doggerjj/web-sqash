@@ -1,51 +1,28 @@
 # Erendil
 
-Save this script as `process_manager.py` and make it executable:
+1. Using `nohup` directly:
 
-```bash
-chmod +x process_manager.py
-```
+    ```bash
+    nohup uv run python main.py > trader.log 2>&1 &
+    ```
 
-Here's how to use it:
+After running either command, you can:
 
-1. Start a new process:
+- Check if it's running with:
 
-```bash
-./process_manager.py start myapp "uv run python fastapi_app.py"
-```
+    ```bash
+    ps aux | grep main.py
+    ```
 
-2. List all running processes:
+- View the logs in real-time with:
 
-```bash
-./process_manager.py list
-```
+    ```bash
+    tail -f trader.log
+    ```
 
-3. Stop a process:
+- To stop it later, find its PID and kill it:
 
-```bash
-./process_manager.py stop myapp
-```
-
-The script features:
-
-- Keeps track of running processes in a JSON file (`~/.process_manager.json`)
-- Manages output logs automatically
-- Stores process information including PID, command, start time
-- Easy to use CLI interface
-- Persists process information across SSH sessions
-
-You can also create an alias in your `.bashrc` or .`zshrc`:
-
-```bash
-alias pm='path/to/process_manager.py'
-```
-
-Then use it like:
-
-```bash
-pm start myapp "uv run python fastapi_app.py"
-pm list
-pm stop myapp
-```
-
-The script stores all process information in `~/.process_manager.json`, so you can track and manage your processes even after logging out and back in.
+    ```bash
+    ps aux | grep main.py 
+    kill <PID> 
+    ```
