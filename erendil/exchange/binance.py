@@ -336,9 +336,8 @@ class BinanceKlineManager:
         self.is_running = False
         
     
-
+'''
 class BinanceExchange:
-    """Main Binance exchange interface"""
     def __init__(self):
         self.kline_managers: Dict[str, BinanceKlineManager] = {}
     
@@ -350,7 +349,6 @@ class BinanceExchange:
         onmessage_callback: Callable[[pl.DataFrame], None],
         limit: int = 1000,
     ) -> None:
-        """Add a new symbol stream"""
         symbol = symbol.lower()
         manager = BinanceKlineManager(
             limit=limit,
@@ -365,13 +363,40 @@ class BinanceExchange:
         await manager.start_websocket_stream()
     
     async def remove_symbol_stream(self, symbol: str) -> None:
-        """Remove a symbol stream"""
         if symbol in self.kline_managers:
             await self.kline_managers[symbol].stop()
             del self.kline_managers[symbol]
     
     async def stop_all(self) -> None:
-        """Stop all symbol streams"""
         for manager in self.kline_managers.values():
             await manager.stop()
         self.kline_managers.clear()
+'''
+   
+     
+class Erendil:
+    def __init__(
+        self, 
+        symbol: str, 
+        interval: str, 
+        onclose_callback: Callable[[pl.DataFrame], None], 
+        onmessage_callback: Callable[[pl.DataFrame], None], 
+        limit: int = 1000,
+    ) -> None:
+        self.symbol = symbol
+        symbol = symbol.lower()
+        self.manager = BinanceKlineManager(
+            limit=limit,
+            symbol=symbol,
+            interval=interval,
+            onclose_callback=onclose_callback,
+            onmessage_callback=onmessage_callback
+        )
+        
+    async def run(self) -> None:
+        logger.info(f"Starting trading bot for {self.symbol}")
+        await self.manager.fetch_historical_data()
+        await self.manager.start_websocket_stream()
+    
+    async def stop(self) -> None:
+        await self.manager.stop()
