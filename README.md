@@ -1,5 +1,7 @@
 # Erendil
 
+## To run normally
+
 1. Using `nohup` directly:
 
     ```bash
@@ -25,4 +27,22 @@ After running either command, you can:
     ```bash
     ps aux | grep main.py 
     kill <PID> 
+    ```
+
+
+## To run with process.py
+
+- To start a process
+    ```bash
+    python process.py --start <filename.log>
+    ```
+
+- To list running processes
+    ```bash
+    python process.py --list
+    ```
+
+- To stop active process
+    ```bash
+    python process.py --stop <filename.log>
     ```
