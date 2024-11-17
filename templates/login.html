@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Trading Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md">
+        <div class="bg-zinc-900 rounded-lg p-8 border border-yellow-500/30">
+            <h1 class="text-yellow-500 text-3xl font-bold text-center mb-8">Dashboard</h1>
+            
+            <!-- Error Message -->
+            <div id="error-message" class="mb-4 text-red-500 text-center hidden">
+                Invalid username or password
+            </div>
+
+            <form method="POST" action="/login" class="space-y-6">
+                <div>
+                    <label for="username" class="block text-zinc-400 mb-2">Username</label>
+                    <input type="text" id="username" name="username" required
+                           class="w-full px-4 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-yellow-500">
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-zinc-400 mb-2">Password</label>
+                    <input type="password" id="password" name="password" required
+                           class="w-full px-4 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-yellow-500">
+                </div>
+
+                <button type="submit" 
+                        class="w-full bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg hover:bg-yellow-400 transition-colors">
+                    Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        if (new URLSearchParams(window.location.search).has('error')) {
+            document.getElementById('error-message').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

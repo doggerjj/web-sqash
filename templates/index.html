@@ -96,9 +96,19 @@
             </div>
         </div>
     </div>
+
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-8">
-        <header class="mb-8">
+        <!-- Modified Header with Logout Button -->
+        <header class="mb-8 relative">
+            <div class="absolute right-4 top-0">
+                <form method="POST" action="/logout">
+                    <button type="submit" 
+                            class="px-4 py-2 bg-zinc-800 text-zinc-400 rounded-lg hover:bg-zinc-700 transition-colors">
+                        Logout
+                    </button>
+                </form>
+            </div>
             <h1 class="text-yellow-500 text-4xl font-bold text-center">Trading Bot Dashboard</h1>
             <p class="text-zinc-400 text-center mt-2">Trading Activity Overview</p>
         </header>
@@ -254,7 +264,9 @@
                                 <span class="block text-white font-bold">${stats.totalOrders}</span>
                             </p>
                             <p class="text-zinc-400">Avg Entry
-                                <span class="block text-white font-bold">${formatMoney(stats.avgEntryPrice)}</span>
+                                <span class="block text-white font-bold"
+                                ${formatMoney(stats.avgEntryPrice)}
+                                </span>
                             </p>
                             <p class="text-zinc-400">Unrealized PNL
                                 <span class="block ${stats.unrealizedPNL > 0 ? 'text-green-500' : stats.unrealizedPNL < 0 ? 'text-red-500' : 'text-white'} font-bold">
@@ -308,6 +320,20 @@
 
         // Refresh every 5 seconds
         setInterval(updateDashboard, 5000);
+
+        // Close modal when clicking outside
+        document.getElementById('orderModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
     </script>
 </body>
 </html>

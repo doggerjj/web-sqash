@@ -18,7 +18,9 @@ dependencies = [
     "pydantic-settings>=2.6.1",
     "pydantic>=2.9.2",
     "python-dotenv>=1.0.1",
+    "python-multipart>=0.0.17",
     "requests>=2.32.3",
+    "runpod>=1.7.4",
     "uvicorn>=0.32.0",
     "websockets>=14.0",
 ]
