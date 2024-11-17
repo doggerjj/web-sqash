@@ -20,16 +20,18 @@ templates = Jinja2Templates(directory="templates")
 
 def read_trading_logs():
     data = {}
-    pattern = r'([A-Z]+USDT)_1h_log_file\.json'
-    for filename in glob.glob("*_1h_log_file.json"):
+    pattern = r'([A-Z]+USDT)_(\w+)_log_file\.json'
+    for filename in glob.glob("*_log_file.json"):
         match = re.match(pattern, filename)
         if match:
             pair = match.group(1)
+            interval = match.group(2)
             try:
                 with open(filename, 'r') as f:
                     content = json.load(f)
-                    if content:  # Only add if file has content
-                        data[pair] = content
+                    if content:
+                        key = f"{pair}_{interval}"
+                        data[key] = content
             except json.JSONDecodeError as e:
                 print(f"Error reading {filename}: {e}")
                 continue

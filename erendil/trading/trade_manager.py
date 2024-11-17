@@ -11,11 +11,13 @@ logger = logging.getLogger(__name__)
         
 
 class TradeManager:
-    def __init__(self, analyzer: EnhancedMarketAnalyzer, capital_per_trade: float=100, fee_percent: float=0.1, max_buys: int=3, log_file: str = "trade_log.json"):
+    def __init__(self, analyzer: EnhancedMarketAnalyzer, symbol: str, interval: str, capital_per_trade: float=100, fee_percent: float=0.1, max_buys: int=3, log_file: str = "trade_log.json"):
         self.pnl = 0
         self.buy_count = 0
         self.trade_log = []
+        self.symbol = symbol
         self.total_invested = 0
+        self.interval = interval
         self.analyzer = analyzer
         self.max_buys = max_buys
         self.log_file = log_file
@@ -30,15 +32,21 @@ class TradeManager:
     def _save_trade_entry(self, trade_entry: Dict):
         """Save trade entry to log file using aiofiles"""
         try:
+            json_data = {
+                "symbol": self.symbol,
+                "trades": [trade_entry],
+                "interval": self.interval,
+            }
             try:
                 with open(self.log_file, 'r') as f:
                     content = f.read()
-                    trades = json.loads(content) if content else []
+                    json_data = json.loads(content) if content else json_data
             except FileNotFoundError:
-                trades = []
-            trades.append(trade_entry)
+                pass
+            json_data['trades'].append(trade_entry)
             with open(self.log_file, 'w') as f:
-                f.write(json.dumps(trades, indent=2, default=str))
+                f.write(json.dumps(json_data, indent=2, default=str))
+            logger.debug(f"Trade entry saved successfully to {self.log_file}")
         except Exception as e:
             logger.error(f"Error saving trade log: {e}")
     

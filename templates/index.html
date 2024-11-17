@@ -109,9 +109,25 @@
                     </button>
                 </form>
             </div>
-            <h1 class="text-yellow-500 text-4xl font-bold text-center">Trading Bot Dashboard</h1>
-            <p class="text-zinc-400 text-center mt-2">Trading Activity Overview</p>
+            <h1 class="text-stone-200 text-4xl font-bold text-center">Erendil Bot Dashboard</h1>
+            <p class="text-stone-400 text-center mt-2">Trading Simulation Activity Overview</p>
         </header>
+
+        <!-- Filters -->
+        <div class="mb-8 flex justify-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <label class="text-zinc-400">Symbol:</label>
+                <select id="symbolFilter" class="bg-zinc-800 text-white rounded-lg px-3 py-2 border border-yellow-500/30">
+                    <option value="all">All Symbols</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <label class="text-zinc-400">Interval:</label>
+                <select id="intervalFilter" class="bg-zinc-800 text-white rounded-lg px-3 py-2 border border-yellow-500/30">
+                    <option value="all">All Intervals</option>
+                </select>
+            </div>
+        </div>
 
         <!-- Summary Stats -->
         <div id="summary-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -141,6 +157,9 @@
 
     <script>
         let globalTradeData = {};
+        let symbolFilter = localStorage.getItem('symbolFilter') || 'all';  // Persist in localStorage
+        let intervalFilter = localStorage.getItem('intervalFilter') || 'all';  // Persist in localStorage
+
 
         function formatDateTime(dateString) {
             return new Date(dateString).toLocaleString();
@@ -159,6 +178,49 @@
             return Number(num).toFixed(decimals);
         }
 
+        function updateFilters(data) {
+            const symbols = new Set();
+            const intervals = new Set();
+            
+            Object.entries(data).forEach(([key, _]) => {
+                const [symbol, interval] = key.split('_');
+                symbols.add(symbol);
+                intervals.add(interval);
+            });
+        
+            const symbolSelect = document.getElementById('symbolFilter');
+            const intervalSelect = document.getElementById('intervalFilter');
+        
+            // Store current selections
+            const currentSymbol = symbolSelect.value;
+            const currentInterval = intervalSelect.value;
+        
+            // Clear existing options except 'all'
+            symbolSelect.innerHTML = '<option value="all">All Symbols</option>';
+            intervalSelect.innerHTML = '<option value="all">All Intervals</option>';
+        
+            // Add new options
+            symbols.forEach(symbol => {
+                symbolSelect.add(new Option(symbol, symbol));
+            });
+        
+            intervals.forEach(interval => {
+                intervalSelect.add(new Option(interval, interval));
+            });
+        
+            // Restore selections
+            symbolSelect.value = symbolFilter;
+            intervalSelect.value = intervalFilter;
+        }
+
+        function filterData(data) {
+            return Object.entries(data).filter(([key, _]) => {
+                const [symbol, interval] = key.split('_');
+                return (symbolFilter === 'all' || symbol === symbolFilter) &&
+                       (intervalFilter === 'all' || interval === intervalFilter);
+            });
+        }
+
         function calculatePairStats(orders) {
             let stats = {
                 totalOrders: orders.length,
@@ -167,44 +229,45 @@
                 currentPosition: 0,
                 avgEntryPrice: 0,
                 totalInvested: 0,
-                lastPrice: orders[orders.length - 1].price
+                lastPrice: orders[orders.length - 1]?.price || 0
             };
-
+        
             let totalBuyValue = 0;
             let totalBuySize = 0;
-
+        
             orders.forEach(order => {
-                stats.totalFees += order.fee;
+                stats.totalFees += order.fee || 0;
                 
                 if (order.action === 'BUY') {
                     stats.currentPosition += order.position_size;
                     totalBuyValue += (order.price * order.position_size);
                     totalBuySize += order.position_size;
-                } else if (order.action === 'SELL') {
+                } else if (order.action.startsWith('SELL')) {  // Changed to handle SELL_FIRST and SELL_SECOND
                     stats.currentPosition -= order.position_size;
                     if (order.pnl) stats.netPNL += order.pnl;
                 }
             });
-
+        
             stats.avgEntryPrice = totalBuySize > 0 ? totalBuyValue / totalBuySize : 0;
             stats.unrealizedPNL = stats.currentPosition * (stats.lastPrice - stats.avgEntryPrice);
-
+        
             return stats;
         }
 
         function openModal(pair) {
-            const orders = globalTradeData[pair];
+            const tradeData = globalTradeData[pair];
+            const orders = tradeData.trades;
             const stats = calculatePairStats(orders);
             
-            document.getElementById('modalTitle').textContent = pair;
+            document.getElementById('modalTitle').textContent = `${pair.split('_')[0]} (${pair.split('_')[1]})`;
             document.getElementById('modalTotalOrders').textContent = stats.totalOrders;
             document.getElementById('modalTotalFees').textContent = formatMoney(stats.totalFees);
             document.getElementById('modalNetPNL').textContent = formatMoney(stats.netPNL);
             document.getElementById('modalPositionSize').textContent = formatNumber(stats.currentPosition);
             document.getElementById('modalAvgEntryPrice').textContent = formatMoney(stats.avgEntryPrice);
-            document.getElementById('modalLastPrice').textContent = formatMoney(stats.lastPrice);
+            document.getElementById('modalLastPrice').textContent = formatMoney(orders[orders.length - 1].price);
             document.getElementById('modalUnrealizedPNL').textContent = formatMoney(stats.unrealizedPNL);
-
+        
             // Populate orders table
             const tableBody = document.getElementById('modalOrdersTable');
             tableBody.innerHTML = orders.map(order => `
@@ -224,7 +287,7 @@
                     </td>
                 </tr>
             `).join('');
-
+        
             document.getElementById('orderModal').classList.remove('hidden');
         }
 
@@ -232,14 +295,19 @@
             document.getElementById('orderModal').classList.add('hidden');
         }
 
-        function createTradingCard(pair, orders) {
+        function createTradingCard(key, tradeData) {
+            const [symbol, interval] = key.split('_');
+            const orders = tradeData.trades;
             const latestOrder = orders[orders.length - 1];
             const stats = calculatePairStats(orders);
             
             return `
-                <div onclick="openModal('${pair}')" class="bg-zinc-900 rounded-lg p-6 shadow-lg border border-yellow-500/30 hover:border-yellow-500 transition-all cursor-pointer">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-yellow-500 text-2xl font-bold">${pair}</h2>
+                <div onclick="openModal('${key}')" class="bg-zinc-900 rounded-lg p-6 shadow-lg border border-yellow-500/30 hover:border-yellow-500 transition-all cursor-pointer">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h2 class="text-yellow-500 text-2xl font-bold">${symbol}</h2>
+                            <span class="text-zinc-400 text-sm">${interval}</span>
+                        </div>
                         <span class="px-3 py-1 rounded-full ${latestOrder.action === 'BUY' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}">
                             ${latestOrder.action}
                         </span>
@@ -264,9 +332,7 @@
                                 <span class="block text-white font-bold">${stats.totalOrders}</span>
                             </p>
                             <p class="text-zinc-400">Avg Entry
-                                <span class="block text-white font-bold"
-                                ${formatMoney(stats.avgEntryPrice)}
-                                </span>
+                                <span class="block text-white font-bold">${formatMoney(stats.avgEntryPrice)}</span>
                             </p>
                             <p class="text-zinc-400">Unrealized PNL
                                 <span class="block ${stats.unrealizedPNL > 0 ? 'text-green-500' : stats.unrealizedPNL < 0 ? 'text-red-500' : 'text-white'} font-bold">
@@ -275,7 +341,7 @@
                             </p>
                         </div>
                     </div>
-
+        
                     <div class="mt-4 pt-4 border-t border-zinc-800">
                         <p class="text-zinc-400">Last Signal
                             <span class="block text-white">${latestOrder.signal_reason}</span>
@@ -290,24 +356,27 @@
                 .then(response => response.json())
                 .then(data => {
                     globalTradeData = data;
+                    updateFilters(data);
+                    
+                    const filteredData = filterData(data);
                     const container = document.getElementById('pairs-container');
                     container.innerHTML = '';
                     
-                    // Calculate global stats
                     let totalOrders = 0;
                     let totalFees = 0;
                     let totalPNL = 0;
-
-                    for (const [pair, orders] of Object.entries(data)) {
-                        const stats = calculatePairStats(orders);
-                        totalOrders += stats.totalOrders;
-                        totalFees += stats.totalFees;
-                        totalPNL += stats.netPNL;
-                        container.innerHTML += createTradingCard(pair, orders);
-                    }
-
-                    // Update summary stats
-                    document.getElementById('total-pairs').textContent = Object.keys(data).length;
+        
+                    filteredData.forEach(([key, tradeData]) => {
+                        if (tradeData && tradeData.trades && tradeData.trades.length > 0) {
+                            const stats = calculatePairStats(tradeData.trades);
+                            totalOrders += stats.totalOrders;
+                            totalFees += stats.totalFees;
+                            totalPNL += stats.netPNL;
+                            container.innerHTML += createTradingCard(key, tradeData);
+                        }
+                    });
+        
+                    document.getElementById('total-pairs').textContent = filteredData.length;
                     document.getElementById('total-trades').textContent = totalOrders;
                     document.getElementById('total-pnl').textContent = formatMoney(totalPNL);
                     document.getElementById('total-fees').textContent = formatMoney(totalFees);
@@ -315,11 +384,28 @@
                 .catch(error => console.error('Error:', error));
         }
 
-        // Initial load
-        updateDashboard();
+        // Event listeners for filters
+        document.getElementById('symbolFilter').addEventListener('change', function(e) {
+            symbolFilter = e.target.value;
+            localStorage.setItem('symbolFilter', symbolFilter);  // Save to localStorage
+            updateDashboard();
+        });
 
-        // Refresh every 5 seconds
-        setInterval(updateDashboard, 5000);
+        document.getElementById('intervalFilter').addEventListener('change', function(e) {
+            intervalFilter = e.target.value;
+            localStorage.setItem('intervalFilter', intervalFilter);  // Save to localStorage
+            updateDashboard();
+        });
+
+        // Initialize filters on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const symbolSelect = document.getElementById('symbolFilter');
+            const intervalSelect = document.getElementById('intervalFilter');
+            
+            // Set initial values from localStorage
+            symbolSelect.value = symbolFilter;
+            intervalSelect.value = intervalFilter;
+        });
 
         // Close modal when clicking outside
         document.getElementById('orderModal').addEventListener('click', function(event) {
@@ -334,6 +420,12 @@
                 closeModal();
             }
         });
+
+        // Initial load
+        updateDashboard();
+
+        // Refresh every 5 seconds
+        setInterval(updateDashboard, 5000);
     </script>
 </body>
 </html>

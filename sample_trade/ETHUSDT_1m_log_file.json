@@ -1,0 +1,32 @@
+{
+  "symbol": "ETHUSDT",
+  "interval": "1m",
+  "trades": [
+    {
+      "fee": 0.1,
+      "pnl": null,
+      "action": "BUY",
+      "price": 3545.67,
+      "signal_reason": "Buy signal detected",
+      "position_size": 0.028,
+      "total_invested": 100,
+      "entry_price": 3545.67,
+      "remaining_position": 0.028,
+      "total_pnl": null,
+      "timestamp": "2024-03-15T14:00:00+05:30"
+    },
+    {
+      "fee": 0.1,
+      "pnl": null,
+      "action": "BUY",
+      "price": 3525.89,
+      "signal_reason": "DCA buy",
+      "position_size": 0.028,
+      "total_invested": 200,
+      "entry_price": 3535.78,
+      "remaining_position": 0.056,
+      "total_pnl": null,
+      "timestamp": "2024-03-15T14:15:00+05:30"
+    }
+  ]
+}

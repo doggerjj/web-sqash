@@ -1,0 +1,32 @@
+{
+  "symbol": "BTCUSDT",
+  "interval": "5m",
+  "trades": [
+    {
+      "fee": 0.1,
+      "pnl": null,
+      "action": "BUY",
+      "price": 65245.67,
+      "signal_reason": "Buy signal detected",
+      "position_size": 0.015,
+      "total_invested": 100,
+      "entry_price": 65245.67,
+      "remaining_position": 0.015,
+      "total_pnl": null,
+      "timestamp": "2024-03-15T13:00:00+05:30"
+    },
+    {
+      "fee": 0.15,
+      "pnl": -5.5,
+      "action": "SELL_FIRST",
+      "price": 65145.78,
+      "signal_reason": "Sell signal detected",
+      "position_size": 0.0075,
+      "total_invested": 50,
+      "entry_price": 65245.67,
+      "remaining_position": 0.0075,
+      "total_pnl": -5.5,
+      "timestamp": "2024-03-15T13:45:00+05:30"
+    }
+  ]
+}

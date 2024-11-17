@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
         
 async def main():
     interval = "1m"
-    symbol = "ADAUSDT"
+    symbol = "ATOMUSDT"
     trade_manager = TradeManager(
+        symbol=symbol, interval=interval,
         max_buys = 3, fee_percent = 0.1, capital_per_trade = 100,
         log_file=f"{symbol}_{interval}_log_file.json", analyzer = EnhancedMarketAnalyzer()
     )  
@@ -31,7 +32,6 @@ async def main():
             await asyncio.sleep(1)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
-        trade_manager.cleanup()
         await trader.stop()
 
 if __name__ == "__main__":

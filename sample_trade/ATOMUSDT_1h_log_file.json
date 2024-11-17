@@ -1,0 +1,45 @@
+{
+    "symbol": "ATOMUSDT",
+    "interval": "1h",
+    "trades": [
+      {
+        "fee": 0.1,
+        "pnl": null,
+        "action": "BUY",
+        "price": 12.45,
+        "signal_reason": "Buy signal detected",
+        "position_size": 8.032,
+        "total_invested": 100,
+        "entry_price": 12.45,
+        "remaining_position": 8.032,
+        "total_pnl": null,
+        "timestamp": "2024-03-15T10:00:00+05:30"
+      },
+      {
+        "fee": 0.1,
+        "pnl": null,
+        "action": "BUY",
+        "price": 12.35,
+        "signal_reason": "DCA buy",
+        "position_size": 8.097,
+        "total_invested": 200,
+        "entry_price": 12.40,
+        "remaining_position": 16.129,
+        "total_pnl": null,
+        "timestamp": "2024-03-15T11:00:00+05:30"
+      },
+      {
+        "fee": 0.15,
+        "pnl": 15.5,
+        "action": "SELL_FIRST",
+        "price": 12.65,
+        "signal_reason": "Sell signal detected",
+        "position_size": 8.0645,
+        "total_invested": 100,
+        "entry_price": 12.40,
+        "remaining_position": 8.0645,
+        "total_pnl": 15.5,
+        "timestamp": "2024-03-15T12:00:00+05:30"
+      }
+    ]
+  }

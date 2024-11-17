@@ -1,0 +1,45 @@
+{
+    "symbol": "SOLUSDT",
+    "interval": "4h",
+    "trades": [
+      {
+        "fee": 0.1,
+        "pnl": null,
+        "action": "BUY",
+        "price": 145.67,
+        "signal_reason": "Buy signal detected",
+        "position_size": 0.686,
+        "total_invested": 100,
+        "entry_price": 145.67,
+        "remaining_position": 0.686,
+        "total_pnl": null,
+        "timestamp": "2024-03-15T08:00:00+05:30"
+      },
+      {
+        "fee": 0.15,
+        "pnl": 35.5,
+        "action": "SELL_FIRST",
+        "price": 155.89,
+        "signal_reason": "Sell signal detected",
+        "position_size": 0.343,
+        "total_invested": 50,
+        "entry_price": 145.67,
+        "remaining_position": 0.343,
+        "total_pnl": 35.5,
+        "timestamp": "2024-03-15T12:00:00+05:30"
+      },
+      {
+        "fee": 0.15,
+        "pnl": 45.5,
+        "action": "SELL_SECOND",
+        "price": 158.90,
+        "signal_reason": "Trailing stoploss hit",
+        "position_size": 0.343,
+        "total_invested": 0,
+        "entry_price": 145.67,
+        "remaining_position": 0,
+        "total_pnl": 81.0,
+        "timestamp": "2024-03-15T16:00:00+05:30"
+      }
+    ]
+  }

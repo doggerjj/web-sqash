@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     default_symbol: str = "BTCUSDT"
     default_interval: str = "1m"
     log_level: str = "INFO"
+    username: str = ""  # Add this
+    password: str = ""  # Add this
     
     class Config:
         env_file = ".env"
