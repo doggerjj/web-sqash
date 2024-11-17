@@ -69,65 +69,38 @@ class BuySellIndicator(BaseIndicator):
         return tr
     
     def process_data(self, df: pl.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Process data and return buy/sell histograms exactly as in PineScript
-        Returns:
-            Tuple of (buy histogram, sell histogram)
-        """
         if len(df) < self.params.slow_length:
             return np.array([]), np.array([])
 
-        # Source data
-        source = df['close'].to_numpy()
+        close = df['close'].to_numpy()
         
-        # Calculate MACD components based on oscillator MA type
+        # Calculate MACD components
         if self.params.oscillator_ma == MAType.SMA:
-            fast_ma = self.calculate_sma(source, self.params.fast_length)
-            slow_ma = self.calculate_sma(source, self.params.slow_length)
+            fast_ma = self.calculate_sma(close, self.params.fast_length)
+            slow_ma = self.calculate_sma(close, self.params.slow_length)
         else:  # EMA
-            fast_ma = self.calculate_ema(source, self.params.fast_length)
-            slow_ma = self.calculate_ema(source, self.params.slow_length)
+            fast_ma = self.calculate_ema(close, self.params.fast_length)
+            slow_ma = self.calculate_ema(close, self.params.slow_length)
         
-        # Ensure arrays are same length by padding
-        padding = len(source) - len(fast_ma)
-        fast_ma = np.pad(fast_ma, (padding, 0), mode='edge')
-        padding = len(source) - len(slow_ma)
-        slow_ma = np.pad(slow_ma, (padding, 0), mode='edge')
-        
-        # Calculate MACD and signal
         macd = fast_ma - slow_ma
         
+        # Calculate signal line
         if self.params.signal_ma == MAType.SMA:
             signal = self.calculate_sma(macd, self.params.signal_length)
         else:  # EMA
             signal = self.calculate_ema(macd, self.params.signal_length)
-        
-        padding = len(macd) - len(signal)
-        signal = np.pad(signal, (padding, 0), mode='edge')
         
         # Calculate TR
         tr = self.calculate_tr(df)
         
         # Buy signal calculation
         atrn_buy = self.ma_function(tr * (-1.25), self.params.smoothing_length, self.params.smoothing)
-        padding = len(tr) - len(atrn_buy)
-        atrn_buy = np.pad(atrn_buy, (padding, 0), mode='edge')
-        
         atr_avg_buy = self.calculate_ema(atrn_buy, self.params.atr_avg_length)
-        padding = len(atrn_buy) - len(atr_avg_buy)
-        atr_avg_buy = np.pad(atr_avg_buy, (padding, 0), mode='edge')
-        
         hist_buy = signal - (atr_avg_buy - signal)
         
         # Sell signal calculation
         atrn_sell = self.ma_function(tr * 1.25, self.params.smoothing_length, self.params.smoothing)
-        padding = len(tr) - len(atrn_sell)
-        atrn_sell = np.pad(atrn_sell, (padding, 0), mode='edge')
-        
         atr_avg_sell = self.calculate_ema(atrn_sell, self.params.atr_avg_length)
-        padding = len(atrn_sell) - len(atr_avg_sell)
-        atr_avg_sell = np.pad(atr_avg_sell, (padding, 0), mode='edge')
-        
         hist_sell = signal - (atr_avg_sell - signal)
         
         return hist_buy, hist_sell
