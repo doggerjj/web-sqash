@@ -1,27 +1,31 @@
+import polars as pl
 import logging, json
 from datetime import datetime
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta, timezone
 from erendil.models.data_models import MarketSignal
 from erendil.trading.position import PositionManager
-from erendil.trading.analyzer import EnhancedMarketAnalyzer
+from erendil.indicators.buy_sell import BuySellIndicator
+from erendil.indicators.trailing_stop import TrailingStoploss
 
 
 logger = logging.getLogger(__name__)
         
 
 class TradeManager:
-    def __init__(self, analyzer: EnhancedMarketAnalyzer, symbol: str, interval: str, capital_per_trade: float=100, fee_percent: float=0.1, max_buys: int=3, log_file: str = "trade_log.json"):
+    def __init__(self, symbol: str, interval: str, capital_per_trade: float=100, fee_percent: float=0.1, max_buys: int=3, log_file: str = "trade_log.json"):
         self.pnl = 0
         self.buy_count = 0
         self.trade_log = []
         self.symbol = symbol
         self.total_invested = 0
         self.interval = interval
-        self.analyzer = analyzer
         self.max_buys = max_buys
         self.log_file = log_file
         self.fee_percent = fee_percent
+        self.cached_trailing_stop = None
+        self.stoploss = TrailingStoploss()
+        self.indicator = BuySellIndicator()
         self.position_log = PositionManager()
         self.capital_per_trade = capital_per_trade
         
@@ -110,7 +114,6 @@ class TradeManager:
         trade_entry = self._create_trade_entry(signal, "BUY", position, fee)
         self._save_trade_entry(trade_entry)
             
-    
     def sell(self, signal: MarketSignal, trailing_stoploss: float):
         
         # First exit only on candle close signal
@@ -169,21 +172,55 @@ class TradeManager:
             trade_entry = self._create_trade_entry(signal, "SELL_SECOND", exit_position, fee, exit_pnl)
             self._save_trade_entry(trade_entry)
     
-    def handle_candle_close(self, df):
-        signal, trailing_stoploss = self.analyzer.calculate_signals(df)
-        if signal:
-            if signal.action == "BUY":
-                logger.info(f"Buy signal detected at candle close: Price={signal.price}")
-                self.buy(signal)
-            elif (signal.action == "SELL") and (signal.reason == "Sell signal detected"):
-                if self.position_log.position > 0:
-                    logger.info(f"Sell signal detected at candle close: Price={signal.price}")
-                    self.sell(signal, trailing_stoploss)
+    def handle_candle_close(self, df: pl.DataFrame):
+        """Process completed candle - compute all indicators and signals"""
+        if len(df) < max(self.indicator.params.slow_length, self.stoploss.params.hhv_period) + 2:
+            return
+            
+        latest_row = df.tail(1)
+        current_price = latest_row['close'][0]
+        latest_timestamp = latest_row['close_time'][0]
+        
+        # Compute indicators
+        hist_buy, hist_sell = self.indicator.process_data(df)
+        ts_array, current_ts, prev_ts = self.stoploss.process_data(df)
+        
+        # Cache trailing stop for real-time checks
+        self.cached_trailing_stop = current_ts
+        
+        # Check signals
+        if self.indicator.check_buy_signal(hist_buy):
+            logger.info(f"Buy signal detected at candle close: Price={current_price}")
+            signal = MarketSignal(
+                action="BUY",
+                price=current_price,
+                timestamp=latest_timestamp,
+                reason="Buy signal detected"
+            )
+            self.buy(signal)
+            
+        elif self.indicator.check_sell_signal(hist_sell):
+            if self.position_log.position > 0:
+                logger.info(f"Sell signal detected at candle close: Price={current_price}")
+                signal = MarketSignal(
+                    action="SELL",
+                    price=current_price,
+                    timestamp=latest_timestamp,
+                    reason="Sell signal detected"
+                )
+                self.sell(signal, current_ts)
     
-    def handle_price_update(self, df):
-        signal, trailing_stoploss = self.analyzer.calculate_signals(df)
-        if signal:
-            if (signal.action == "SELL") and (signal.reason == "Trailing stoploss hit"):
-                if self.position_log.first_exit_price is not None:
-                    logger.info(f"Trailing stop triggered at price {signal.price}")
-                    self.sell(signal, trailing_stoploss)
+    def handle_price_update(self, current_price: float):
+        """Check real-time price against cached trailing stop"""
+        
+        # Only check after first exit
+        if (self.cached_trailing_stop is not None and self.position_log.first_exit_price is not None):  
+            # Check if price is below cached trailing stop
+            if current_price < self.cached_trailing_stop:
+                signal = MarketSignal(
+                    price=current_price,
+                    action="SELL",
+                    reason="Trailing stoploss hit",
+                    timestamp=datetime.now(timezone.utc)
+                )
+                self.sell(signal, self.cached_trailing_stop)

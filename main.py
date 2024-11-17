@@ -2,7 +2,6 @@ import asyncio
 import logging
 from erendil.exchange.binance import Erendil
 from erendil.trading.trade_manager import TradeManager
-from erendil.trading.analyzer import EnhancedMarketAnalyzer
 
 
 logging.basicConfig(
@@ -18,8 +17,8 @@ async def main():
     symbol = "ATOMUSDT"
     trade_manager = TradeManager(
         symbol=symbol, interval=interval,
-        max_buys = 3, fee_percent = 0.1, capital_per_trade = 100,
-        log_file=f"{symbol}_{interval}_log_file.json", analyzer = EnhancedMarketAnalyzer()
+        fee_percent = 0.1, capital_per_trade = 100,
+        max_buys = 3, log_file=f"{symbol}_{interval}_log_file.json"
     )  
     trader = Erendil(
         limit = 5000, interval = interval, symbol = symbol,

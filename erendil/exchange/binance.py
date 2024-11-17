@@ -62,26 +62,6 @@ class BinanceKlineManager:
         if settings.binance_api_key:
             self.headers["X-MBX-APIKEY"] = settings.binance_api_key
             
-        # Add cooldown tracking
-        self._last_processed_candle = None
-        self._cooldown_multiplier = 0.8  # 80% of interval
-        self._cooldown_period = self._get_cooldown_period(interval)
-        
-    def _get_cooldown_period(self, interval: str) -> timedelta:
-        """Convert interval string to timedelta cooldown period"""
-        unit = interval[-1]
-        number = int(interval[:-1])
-        
-        base_period = timedelta(
-            minutes=number if unit == 'm' else 0,
-            hours=number if unit == 'h' else 0,
-            days=number if unit == 'd' else 0,
-            weeks=number if unit == 'w' else 0
-        )
-        
-        # Return 80% of the interval period
-        return base_period * self._cooldown_multiplier
-            
     def convert_to_ist(self, utc_time: datetime) -> datetime:
         """Convert UTC datetime to IST datetime"""
         ist = timezone(timedelta(hours=5, minutes=30))
@@ -244,19 +224,17 @@ class BinanceKlineManager:
                 logger.error(f"Error fetching batch {start_time}-{end_time}: {e}")
                 return []
     
-    async def process_data_onmessage(self) -> None:
+    async def process_data_onmessage(self, current_price: float) -> None:
         """Process data received from the websocket"""
-        # Use temporary data for real-time updates
-        if self._temp_data is not None:
-            try:
-                asyncio.create_task(
-                asyncio.to_thread(
-                    self.onmessage_callback, 
-                    self._temp_data
-                )
+        try:
+            asyncio.create_task(
+            asyncio.to_thread(
+                self.onmessage_callback, 
+                current_price
             )
-            except Exception as e:
-                logger.error(f"Error in callback processing: {e}")
+        )
+        except Exception as e:
+            logger.error(f"Error in callback processing: {e}")
     
     async def process_data_onclose(self) -> None:
         """Process data received from the websocket on candle close"""
@@ -276,45 +254,29 @@ class BinanceKlineManager:
         """Handle incoming websocket messages"""
         try:
             ws_data = WebsocketKline.model_validate_json(message)
-            current_time = datetime.fromtimestamp(ws_data.kline['t'] / 1000, tz=timezone.utc)
             
             # Process completed candles
             if ws_data.kline.get('x', False):  # Candle closed
-                self._last_processed_candle = current_time
                 kline_data = ws_data.to_kline_data
                 new_row = self.kline_to_polars(kline_data)
                 
                 # Update permanent historical data
                 self.historical_data = pl.concat([
-                    self.historical_data,
-                    new_row
+                    self.historical_data, new_row
                 ])
                 
                 logger.debug(
                     f"New kline added - Time: {self.convert_to_ist(kline_data.close_time)}, "
                     f"Close: {kline_data.close_price:.2f}"
                 )
-                
-                # Update temporary data with latest historical
-                self._temp_data = self.historical_data.clone()
+
                 await self.process_data_onclose()
             
-            
-            # Process real-time price updates only if candle is not closing
+            # Real-time updates - Just pass current price
             else:
-                # Skip price updates during cooldown
-                if (self._last_processed_candle is not None and 
-                    current_time - self._last_processed_candle < self._cooldown_period):
-                    return
-                
-                # Update temporary data with current price
                 if self.historical_data is not None:
                     current_price = float(ws_data.kline['c'])
-                    self._temp_data = self.historical_data.clone()
-                    self._temp_data = self._temp_data.with_columns(
-                        pl.lit(current_price).alias("close").cast(pl.Float64)
-                    )
-                    await self.process_data_onmessage()
+                    await self.process_data_onmessage(current_price)  # Just pass the price
                 
         except Exception as e:
             logger.error(f"Error processing websocket message: {e}")
