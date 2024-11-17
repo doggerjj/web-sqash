@@ -1,6 +1,4 @@
-import queue
-import logging
-import json, threading
+import logging, json
 from datetime import datetime
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta, timezone
@@ -10,61 +8,6 @@ from erendil.trading.analyzer import EnhancedMarketAnalyzer
 
 
 logger = logging.getLogger(__name__)
-
-
-class TradeLogWorker:
-    def __init__(self, log_file: str):
-        self.log_file = log_file
-        self.queue = queue.Queue()
-        self.is_running = True
-        self.worker_thread = threading.Thread(target=self._process_queue, daemon=True)
-        self.worker_thread.start()
-        
-    def _process_queue(self):
-        """Background worker that processes the queue and saves trades"""
-        while self.is_running:
-            try:
-                # Wait for new trades with a timeout to allow checking is_running
-                trade_entry = self.queue.get(timeout=1.0)
-                
-                try:
-                    # Read existing trades
-                    try:
-                        with open(self.log_file, 'r') as f:
-                            content = f.read()
-                            trades = json.loads(content) if content else []
-                    except FileNotFoundError:
-                        trades = []
-
-                    # Append new trade
-                    trades.append(trade_entry)
-
-                    # Write updated trades back to file
-                    with open(self.log_file, 'w') as f:
-                        json.dump(trades, f, indent=2, default=str)
-                        
-                except Exception as e:
-                    logger.error(f"Error saving trade log: {e}")
-                
-                self.queue.task_done()
-                
-            except queue.Empty:
-                continue  # No trades to process, continue waiting
-            except Exception as e:
-                logger.error(f"Error in trade log worker: {e}")
-                
-    def add_trade(self, trade_entry: Dict):
-        """Add a trade entry to the processing queue"""
-        self.queue.put(trade_entry)
-        
-    def stop(self):
-        """Stop the worker thread"""
-        self.is_running = False
-        self.worker_thread.join()
-        
-    def wait_until_done(self):
-        """Wait for all queued trades to be processed"""
-        self.queue.join()
         
 
 class TradeManager:
@@ -75,15 +18,29 @@ class TradeManager:
         self.total_invested = 0
         self.analyzer = analyzer
         self.max_buys = max_buys
+        self.log_file = log_file
         self.fee_percent = fee_percent
         self.position_log = PositionManager()
         self.capital_per_trade = capital_per_trade
         
-        self.log_worker = TradeLogWorker(log_file)
-        
     def _convert_to_ist(self, utc_time: datetime) -> datetime:
         ist = timezone(timedelta(hours=5, minutes=30))
         return utc_time.astimezone(ist)
+    
+    def _save_trade_entry(self, trade_entry: Dict):
+        """Save trade entry to log file using aiofiles"""
+        try:
+            try:
+                with open(self.log_file, 'r') as f:
+                    content = f.read()
+                    trades = json.loads(content) if content else []
+            except FileNotFoundError:
+                trades = []
+            trades.append(trade_entry)
+            with open(self.log_file, 'w') as f:
+                f.write(json.dumps(trades, indent=2, default=str))
+        except Exception as e:
+            logger.error(f"Error saving trade log: {e}")
     
     def _create_trade_entry(self, signal: MarketSignal, action: str, position_size: float, 
         fee: float, pnl: Optional[float] = None) -> Dict:
@@ -106,7 +63,7 @@ class TradeManager:
         
         # Check if max buys limit reached
         if self.buy_count >= self.max_buys:
-            # logger.info(f"Max buys ({self.max_buys}) reached, skipping buy signal at price {signal.price}")
+            logger.info(f"Max buys ({self.max_buys}) reached, skipping buy signal at price {signal.price}")
             return
         
         # Calculate fee for buying
@@ -142,8 +99,8 @@ class TradeManager:
         self.trade_log.append(self.position_log)
         
         # Create and queue trade entry
-        trade_entry = self._create_trade_entry(signal, f"BUY", position, fee)
-        self.log_worker.add_trade(trade_entry)
+        trade_entry = self._create_trade_entry(signal, "BUY", position, fee)
+        self._save_trade_entry(trade_entry)
             
     
     def sell(self, signal: MarketSignal, trailing_stoploss: float):
@@ -173,7 +130,7 @@ class TradeManager:
             
             # Create and queue trade entry
             trade_entry = self._create_trade_entry(signal, "SELL_FIRST", exit_position, fee, exit_pnl)
-            self.log_worker.add_trade(trade_entry)
+            self._save_trade_entry(trade_entry)
             
         # Second exit only when trailing stoploss is hit
         elif (self.position_log.second_exit_price is None) and (signal.reason == "Trailing stoploss hit"):
@@ -202,17 +159,17 @@ class TradeManager:
             
             # Create and queue trade entry
             trade_entry = self._create_trade_entry(signal, "SELL_SECOND", exit_position, fee, exit_pnl)
-            self.log_worker.add_trade(trade_entry)
+            self._save_trade_entry(trade_entry)
     
     def handle_candle_close(self, df):
         signal, trailing_stoploss = self.analyzer.calculate_signals(df)
         if signal:
             if signal.action == "BUY":
-                # logger.info(f"Buy signal detected at candle close: Price={signal.price}")
+                logger.info(f"Buy signal detected at candle close: Price={signal.price}")
                 self.buy(signal)
             elif (signal.action == "SELL") and (signal.reason == "Sell signal detected"):
                 if self.position_log.position > 0:
-                    # logger.info(f"Sell signal detected at candle close: Price={signal.price}")
+                    logger.info(f"Sell signal detected at candle close: Price={signal.price}")
                     self.sell(signal, trailing_stoploss)
     
     def handle_price_update(self, df):
@@ -220,12 +177,5 @@ class TradeManager:
         if signal:
             if (signal.action == "SELL") and (signal.reason == "Trailing stoploss hit"):
                 if self.position_log.first_exit_price is not None:
-                    # logger.info(f"Trailing stop triggered at price {signal.price}")
+                    logger.info(f"Trailing stop triggered at price {signal.price}")
                     self.sell(signal, trailing_stoploss)
-                    
-    def cleanup(self):
-        """Clean up resources before shutting down"""
-        # Wait for all pending trades to be saved
-        self.log_worker.wait_until_done()
-        # Stop the worker thread
-        self.log_worker.stop()
