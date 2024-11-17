@@ -1,0 +1,32 @@
+[
+    {
+        "timestamp": "2024-01-01T00:00:00Z",
+        "action": "BUY",
+        "price": 42150.50,
+        "position_size": 0.15,
+        "total_invested": 6322.575,
+        "fee": 6.32,
+        "pnl": null,
+        "signal_reason": "RSI oversold + MACD crossover"
+    },
+    {
+        "timestamp": "2024-01-01T12:00:00Z",
+        "action": "SELL",
+        "price": 42950.00,
+        "position_size": 0.075,
+        "total_invested": 3221.25,
+        "fee": 3.22,
+        "pnl": 59.91,
+        "signal_reason": "Take profit target reached"
+    },
+    {
+        "timestamp": "2024-01-02T06:00:00Z",
+        "action": "SELL",
+        "price": 43100.25,
+        "position_size": 0.075,
+        "total_invested": 3232.52,
+        "fee": 3.23,
+        "pnl": 71.23,
+        "signal_reason": "Bearish divergence detected"
+    }
+]

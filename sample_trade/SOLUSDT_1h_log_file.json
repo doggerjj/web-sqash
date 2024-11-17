@@ -1,0 +1,32 @@
+[
+    {
+        "timestamp": "2024-01-01T04:00:00Z",
+        "action": "BUY",
+        "price": 98.75,
+        "position_size": 25.0,
+        "total_invested": 2468.75,
+        "fee": 2.47,
+        "pnl": null,
+        "signal_reason": "Bullish breakout pattern"
+    },
+    {
+        "timestamp": "2024-01-01T16:00:00Z",
+        "action": "SELL",
+        "price": 95.25,
+        "position_size": 12.5,
+        "total_invested": 1190.625,
+        "fee": 1.19,
+        "pnl": -43.75,
+        "signal_reason": "Stop loss triggered"
+    },
+    {
+        "timestamp": "2024-01-02T10:00:00Z",
+        "action": "SELL",
+        "price": 101.50,
+        "position_size": 12.5,
+        "total_invested": 1268.75,
+        "fee": 1.27,
+        "pnl": 34.375,
+        "signal_reason": "Take profit target reached"
+    }
+]

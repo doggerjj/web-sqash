@@ -1,0 +1,32 @@
+[
+    {
+        "timestamp": "2024-01-01T02:00:00Z",
+        "action": "BUY",
+        "price": 2250.75,
+        "position_size": 2.5,
+        "total_invested": 5626.875,
+        "fee": 5.63,
+        "pnl": null,
+        "signal_reason": "Golden cross formation"
+    },
+    {
+        "timestamp": "2024-01-01T14:00:00Z",
+        "action": "BUY",
+        "price": 2245.50,
+        "position_size": 1.5,
+        "total_invested": 3368.25,
+        "fee": 3.37,
+        "pnl": null,
+        "signal_reason": "Support level bounce"
+    },
+    {
+        "timestamp": "2024-01-02T08:00:00Z",
+        "action": "SELL",
+        "price": 2310.25,
+        "position_size": 4.0,
+        "total_invested": 9241.00,
+        "fee": 9.24,
+        "pnl": 238.50,
+        "signal_reason": "Resistance level reached"
+    }
+]
