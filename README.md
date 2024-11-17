@@ -46,3 +46,15 @@ After running either command, you can:
     ```bash
     python process.py --stop <filename.log>
     ```
+
+## To see the process using the port <port> eg:8000
+
+    ```bash
+    lsof -i :8000
+    ```
+
+## To force kill a process:
+
+    ```bash
+    kill -9 <PID>
+    ````

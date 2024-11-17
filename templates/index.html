@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        .modal { backdrop-filter: blur(5px); }
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-black min-h-screen">
+    <!-- Modal -->
+    <div id="orderModal" class="hidden fixed inset-0 bg-black bg-opacity-50 modal z-50 overflow-y-auto">
+        <div class="min-h-screen px-4 text-center">
+            <div class="fixed inset-0 bg-black bg-opacity-75 transition-opacity"></div>
+            <span class="inline-block h-screen align-middle">&#8203;</span>
+            <div class="inline-block w-full max-w-4xl p-6 my-8 text-left align-middle transition-all transform bg-zinc-900 shadow-xl rounded-lg border border-yellow-500/30">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="modalTitle" class="text-2xl font-bold text-yellow-500"></h3>
+                    <button onclick="closeModal()" class="text-zinc-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Summary Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-zinc-800 rounded-lg p-4">
+                        <h4 class="text-zinc-400 text-sm">Total Orders</h4>
+                        <p id="modalTotalOrders" class="text-yellow-500 text-xl font-bold">-</p>
+                    </div>
+                    <div class="bg-zinc-800 rounded-lg p-4">
+                        <h4 class="text-zinc-400 text-sm">Current Balance</h4>
+                        <p id="modalCurrentBalance" class="text-yellow-500 text-xl font-bold">-</p>
+                    </div>
+                    <div class="bg-zinc-800 rounded-lg p-4">
+                        <h4 class="text-zinc-400 text-sm">Total Fees</h4>
+                        <p id="modalTotalFees" class="text-yellow-500 text-xl font-bold">-</p>
+                    </div>
+                    <div class="bg-zinc-800 rounded-lg p-4">
+                        <h4 class="text-zinc-400 text-sm">Net PNL</h4>
+                        <p id="modalNetPNL" class="text-yellow-500 text-xl font-bold">-</p>
+                    </div>
+                </div>
+
+                <!-- Position Summary -->
+                <div class="bg-zinc-800 rounded-lg p-4 mb-6">
+                    <h4 class="text-zinc-400 mb-2">Current Position</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <p class="text-zinc-400 text-sm">Position Size</p>
+                            <p id="modalPositionSize" class="text-white font-bold">-</p>
+                        </div>
+                        <div>
+                            <p class="text-zinc-400 text-sm">Avg Entry Price</p>
+                            <p id="modalAvgEntryPrice" class="text-white font-bold">-</p>
+                        </div>
+                        <div>
+                            <p class="text-zinc-400 text-sm">Last Price</p>
+                            <p id="modalLastPrice" class="text-white font-bold">-</p>
+                        </div>
+                        <div>
+                            <p class="text-zinc-400 text-sm">Unrealized PNL</p>
+                            <p id="modalUnrealizedPNL" class="text-white font-bold">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Orders Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-zinc-800">
+                        <thead>
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Action</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Price</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Position Size</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Value</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Fee</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">PNL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalOrdersTable" class="divide-y divide-zinc-800">
+                            <!-- Orders will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-yellow-500 text-4xl font-bold text-center">Trading Bot Dashboard</h1>
+            <p class="text-zinc-400 text-center mt-2">Trading Activity Overview</p>
+        </header>
+
+        <!-- Summary Stats -->
+        <div id="summary-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-zinc-900 rounded-lg p-4 border border-yellow-500/30">
+                <h3 class="text-zinc-400 text-sm">Active Pairs</h3>
+                <p id="total-pairs" class="text-yellow-500 text-2xl font-bold">-</p>
+            </div>
+            <div class="bg-zinc-900 rounded-lg p-4 border border-yellow-500/30">
+                <h3 class="text-zinc-400 text-sm">Total Orders</h3>
+                <p id="total-trades" class="text-yellow-500 text-2xl font-bold">-</p>
+            </div>
+            <div class="bg-zinc-900 rounded-lg p-4 border border-yellow-500/30">
+                <h3 class="text-zinc-400 text-sm">Net PNL</h3>
+                <p id="total-pnl" class="text-yellow-500 text-2xl font-bold">-</p>
+            </div>
+            <div class="bg-zinc-900 rounded-lg p-4 border border-yellow-500/30">
+                <h3 class="text-zinc-400 text-sm">Total Fees</h3>
+                <p id="total-fees" class="text-yellow-500 text-2xl font-bold">-</p>
+            </div>
+        </div>
+
+        <!-- Trading Pairs Grid -->
+        <div id="pairs-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamic content will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        let globalTradeData = {};
+
+        function formatDateTime(dateString) {
+            return new Date(dateString).toLocaleString();
+        }
+
+        function formatMoney(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        function formatNumber(num, decimals = 4) {
+            return Number(num).toFixed(decimals);
+        }
+
+        function calculatePairStats(orders) {
+            let stats = {
+                totalOrders: orders.length,
+                totalFees: 0,
+                netPNL: 0,
+                currentPosition: 0,
+                avgEntryPrice: 0,
+                totalInvested: 0,
+                lastPrice: orders[orders.length - 1].price
+            };
+
+            let totalBuyValue = 0;
+            let totalBuySize = 0;
+
+            orders.forEach(order => {
+                stats.totalFees += order.fee;
+                
+                if (order.action === 'BUY') {
+                    stats.currentPosition += order.position_size;
+                    totalBuyValue += (order.price * order.position_size);
+                    totalBuySize += order.position_size;
+                } else if (order.action === 'SELL') {
+                    stats.currentPosition -= order.position_size;
+                    if (order.pnl) stats.netPNL += order.pnl;
+                }
+            });
+
+            stats.avgEntryPrice = totalBuySize > 0 ? totalBuyValue / totalBuySize : 0;
+            stats.unrealizedPNL = stats.currentPosition * (stats.lastPrice - stats.avgEntryPrice);
+
+            return stats;
+        }
+
+        function openModal(pair) {
+            const orders = globalTradeData[pair];
+            const stats = calculatePairStats(orders);
+            
+            document.getElementById('modalTitle').textContent = pair;
+            document.getElementById('modalTotalOrders').textContent = stats.totalOrders;
+            document.getElementById('modalTotalFees').textContent = formatMoney(stats.totalFees);
+            document.getElementById('modalNetPNL').textContent = formatMoney(stats.netPNL);
+            document.getElementById('modalPositionSize').textContent = formatNumber(stats.currentPosition);
+            document.getElementById('modalAvgEntryPrice').textContent = formatMoney(stats.avgEntryPrice);
+            document.getElementById('modalLastPrice').textContent = formatMoney(stats.lastPrice);
+            document.getElementById('modalUnrealizedPNL').textContent = formatMoney(stats.unrealizedPNL);
+
+            // Populate orders table
+            const tableBody = document.getElementById('modalOrdersTable');
+            tableBody.innerHTML = orders.map(order => `
+                <tr class="hover:bg-zinc-800">
+                    <td class="px-6 py-4 text-sm text-zinc-300">${formatDateTime(order.timestamp)}</td>
+                    <td class="px-6 py-4 text-sm">
+                        <span class="px-2 py-1 rounded-full ${order.action === 'BUY' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}">
+                            ${order.action}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-zinc-300">${formatMoney(order.price)}</td>
+                    <td class="px-6 py-4 text-sm text-zinc-300">${formatNumber(order.position_size)}</td>
+                    <td class="px-6 py-4 text-sm text-zinc-300">${formatMoney(order.total_invested)}</td>
+                    <td class="px-6 py-4 text-sm text-zinc-300">${formatMoney(order.fee)}</td>
+                    <td class="px-6 py-4 text-sm ${order.pnl > 0 ? 'text-green-500' : order.pnl < 0 ? 'text-red-500' : 'text-zinc-300'}">
+                        ${order.pnl ? formatMoney(order.pnl) : '-'}
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('orderModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('orderModal').classList.add('hidden');
+        }
+
+        function createTradingCard(pair, orders) {
+            const latestOrder = orders[orders.length - 1];
+            const stats = calculatePairStats(orders);
+            
+            return `
+                <div onclick="openModal('${pair}')" class="bg-zinc-900 rounded-lg p-6 shadow-lg border border-yellow-500/30 hover:border-yellow-500 transition-all cursor-pointer">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-yellow-500 text-2xl font-bold">${pair}</h2>
+                        <span class="px-3 py-1 rounded-full ${latestOrder.action === 'BUY' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}">
+                            ${latestOrder.action}
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <p class="text-zinc-400">Current Position
+                                <span class="block text-white font-bold">${formatNumber(stats.currentPosition)}</span>
+                            </p>
+                            <p class="text-zinc-400">Last Price
+                                <span class="block text-white font-bold">${formatMoney(latestOrder.price)}</span>
+                            </p>
+                            <p class="text-zinc-400">Net PNL
+                                <span class="block ${stats.netPNL > 0 ? 'text-green-500' : stats.netPNL < 0 ? 'text-red-500' : 'text-white'} font-bold">
+                                    ${formatMoney(stats.netPNL)}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-zinc-400">Orders
+                                <span class="block text-white font-bold">${stats.totalOrders}</span>
+                            </p>
+                            <p class="text-zinc-400">Avg Entry
+                                <span class="block text-white font-bold">${formatMoney(stats.avgEntryPrice)}</span>
+                            </p>
+                            <p class="text-zinc-400">Unrealized PNL
+                                <span class="block ${stats.unrealizedPNL > 0 ? 'text-green-500' : stats.unrealizedPNL < 0 ? 'text-red-500' : 'text-white'} font-bold">
+                                    ${formatMoney(stats.unrealizedPNL)}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t border-zinc-800">
+                        <p class="text-zinc-400">Last Signal
+                            <span class="block text-white">${latestOrder.signal_reason}</span>
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateDashboard() {
+            fetch('/api/trades')
+                .then(response => response.json())
+                .then(data => {
+                    globalTradeData = data;
+                    const container = document.getElementById('pairs-container');
+                    container.innerHTML = '';
+                    
+                    // Calculate global stats
+                    let totalOrders = 0;
+                    let totalFees = 0;
+                    let totalPNL = 0;
+
+                    for (const [pair, orders] of Object.entries(data)) {
+                        const stats = calculatePairStats(orders);
+                        totalOrders += stats.totalOrders;
+                        totalFees += stats.totalFees;
+                        totalPNL += stats.netPNL;
+                        container.innerHTML += createTradingCard(pair, orders);
+                    }
+
+                    // Update summary stats
+                    document.getElementById('total-pairs').textContent = Object.keys(data).length;
+                    document.getElementById('total-trades').textContent = totalOrders;
+                    document.getElementById('total-pnl').textContent = formatMoney(totalPNL);
+                    document.getElementById('total-fees').textContent = formatMoney(totalFees);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Initial load
+        updateDashboard();
+
+        // Refresh every 5 seconds
+        setInterval(updateDashboard, 5000);
+    </script>
+</body>
+</html>
