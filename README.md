@@ -47,6 +47,11 @@ After running either command, you can:
     python process.py --stop <filename.log>
     ```
 
+- To stop all active processes
+    ```bash
+    python process.py --stop-all
+    ```
+
 ## To see the process using the port <port> eg:8000
 
     ```bash

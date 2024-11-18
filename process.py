@@ -80,6 +80,39 @@ class ProcessManager:
                     print(f"{', '.join(running_pids)}\t{log_file}")
                 else:
                     self._remove_process_entry(log_file)
+    
+    def stop_all_processes(self) -> None:
+        """Stop all managed processes"""
+        if not os.path.exists(self.process_file):
+            print("No running processes to stop")
+            return
+
+        with open(self.process_file, "r") as f:
+            lines = f.readlines()
+
+        if not lines:
+            print("No running processes to stop")
+            return
+
+        stopped_count = 0
+        for line in lines:
+            parts = line.strip().split(",")
+            pids = [int(pid) for pid in parts[:-1]]  # All PIDs except the last element (log file)
+            log_file = parts[-1]
+
+            for pid in pids:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    print(f"Stopped process with PID {pid} (log: {log_file})")
+                    stopped_count += 1
+                except ProcessLookupError:
+                    continue
+                except Exception as e:
+                    print(f"Error stopping PID {pid}: {e}")
+
+        # Clear the process file
+        os.remove(self.process_file)
+        print(f"\nStopped {stopped_count} processes in total")
 
     def _find_pids_by_log(self, log_file: str) -> list[int]:
         """Find all PIDs for a given log file"""
@@ -121,6 +154,7 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--start", help="Start a new process with specified log file")
     group.add_argument("--stop", help="Stop the process with specified log file")
+    group.add_argument("--stop-all", action="store_true", help="Stop all running processes")
     group.add_argument("--list", action="store_true", help="List all running processes")
 
     args = parser.parse_args()
@@ -130,6 +164,8 @@ def main():
         pm.start_process(args.start)
     elif args.stop:
         pm.stop_process(args.stop)
+    elif args.stop_all:
+        pm.stop_all_processes()
     elif args.list:
         pm.list_processes()
 
