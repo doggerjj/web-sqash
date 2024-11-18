@@ -210,25 +210,25 @@ class TradeManager:
         
         # Check signals
         if self.indicator.check_buy_signal(hist_buy):
-            logger.info(f"Buy signal detected at candle close: Price={current_price}")
+            # logger.info(f"Buy signal detected at candle close: Price={current_price}")
             signal = MarketSignal(
                 action="BUY",
                 price=current_price,
                 timestamp=latest_timestamp,
                 reason="Buy signal detected"
             )
-            self.buy(signal)
+            await self.buy(signal)
             
         elif self.indicator.check_sell_signal(hist_sell):
             if self.position_log.position > 0:
-                logger.info(f"Sell signal detected at candle close: Price={current_price}")
+                # logger.info(f"Sell signal detected at candle close: Price={current_price}")
                 signal = MarketSignal(
                     action="SELL",
                     price=current_price,
                     timestamp=latest_timestamp,
                     reason="Sell signal detected"
                 )
-                self.sell(signal, current_ts)
+                await self.sell(signal, current_ts)
     
     async def handle_price_update(self, current_price: float):
         """Check real-time price against cached trailing stop"""
@@ -243,4 +243,4 @@ class TradeManager:
                     reason="Trailing stoploss hit",
                     timestamp=datetime.now(timezone.utc)
                 )
-                self.sell(signal, self.cached_trailing_stop)
+                await self.sell(signal, self.cached_trailing_stop)
