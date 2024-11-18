@@ -50,8 +50,8 @@ class TradeManager:
             try:
                 async with self.file_lock:
                     json_data = {
+                        "trades": [],
                         "symbol": self.symbol,
-                        "trades": [trade_entry],
                         "interval": self.interval,
                     }
                     try:
@@ -155,7 +155,7 @@ class TradeManager:
             
             # Create and queue trade entry
             trade_entry = self._create_trade_entry(signal, "SELL_FIRST", exit_position, fee, exit_pnl)
-            self._save_trade_entry(trade_entry)
+            await self._save_trade_entry(trade_entry)
             
         # Second exit only when trailing stoploss is hit
         elif (self.position_log.second_exit_price is None) and (signal.reason == "Trailing stoploss hit"):
