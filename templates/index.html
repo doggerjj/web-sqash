@@ -74,7 +74,7 @@
                     </div>
                 </div>
 
-                <!-- Orders Table -->
+                <!-- Orders Table in Modal -->
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-zinc-800">
                         <thead>
@@ -83,9 +83,11 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Action</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Price</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Position Size</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Entry Price</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Value</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Fee</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">PNL</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Trail Stop</th>
                             </tr>
                         </thead>
                         <tbody id="modalOrdersTable" class="divide-y divide-zinc-800">
@@ -148,6 +150,7 @@
                 <p id="total-fees" class="text-yellow-500 text-2xl font-bold">-</p>
             </div>
         </div>
+
 
         <!-- Trading Pairs Grid -->
         <div id="pairs-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -221,6 +224,32 @@
             });
         }
 
+        function getActionColor(action) {
+            switch(action) {
+                case 'BUY':
+                    return 'bg-green-500/20 text-green-500';
+                case 'SELL_FIRST':
+                    return 'bg-yellow-500/20 text-yellow-500';
+                case 'SELL_SECOND':
+                    return 'bg-red-500/20 text-red-500';
+                default:
+                    return 'bg-zinc-500/20 text-zinc-400';
+            }
+        }
+
+        function getPnlColor(pnl) {
+            if (!pnl) return 'text-zinc-300';
+            return pnl > 0 ? 'text-green-500' : pnl < 0 ? 'text-red-500' : 'text-zinc-300';
+        }
+
+        function getTradeStatus(orders) {
+            const lastOrder = orders[0]; // Now first due to sorting
+            if (lastOrder.action === 'SELL_SECOND') return 'COMPLETED';
+            if (lastOrder.action === 'SELL_FIRST') return 'PARTIAL_EXIT';
+            if (lastOrder.action === 'BUY') return 'ACTIVE';
+            return 'UNKNOWN';
+        }
+
         function calculatePairStats(orders) {
             let stats = {
                 totalOrders: orders.length,
@@ -256,7 +285,10 @@
 
         function openModal(pair) {
             const tradeData = globalTradeData[pair];
-            const orders = tradeData.trades;
+            // Sort trades by timestamp in descending order (newest first)
+            const orders = [...tradeData.trades].sort((a, b) => 
+                new Date(b.timestamp) - new Date(a.timestamp)
+            );
             const stats = calculatePairStats(orders);
             
             document.getElementById('modalTitle').textContent = `${pair.split('_')[0]} (${pair.split('_')[1]})`;
@@ -268,22 +300,26 @@
             document.getElementById('modalLastPrice').textContent = formatMoney(orders[orders.length - 1].price);
             document.getElementById('modalUnrealizedPNL').textContent = formatMoney(stats.unrealizedPNL);
         
-            // Populate orders table
+            // Enhanced table population
             const tableBody = document.getElementById('modalOrdersTable');
             tableBody.innerHTML = orders.map(order => `
                 <tr class="hover:bg-zinc-800">
                     <td class="px-6 py-4 text-sm text-zinc-300">${formatDateTime(order.timestamp)}</td>
                     <td class="px-6 py-4 text-sm">
-                        <span class="px-2 py-1 rounded-full ${order.action === 'BUY' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}">
+                        <span class="px-2 py-1 rounded-full ${getActionColor(order.action)}">
                             ${order.action}
                         </span>
                     </td>
                     <td class="px-6 py-4 text-sm text-zinc-300">${formatMoney(order.price)}</td>
                     <td class="px-6 py-4 text-sm text-zinc-300">${formatNumber(order.position_size)}</td>
-                    <td class="px-6 py-4 text-sm text-zinc-300">${formatMoney(order.total_invested)}</td>
+                    <td class="px-6 py-4 text-sm text-zinc-300">${order.entry_price ? formatMoney(order.entry_price) : '-'}</td>
+                    <td class="px-6 py-4 text-sm text-zinc-300">${formatMoney(order.price * order.position_size)}</td>
                     <td class="px-6 py-4 text-sm text-zinc-300">${formatMoney(order.fee)}</td>
-                    <td class="px-6 py-4 text-sm ${order.pnl > 0 ? 'text-green-500' : order.pnl < 0 ? 'text-red-500' : 'text-zinc-300'}">
+                    <td class="px-6 py-4 text-sm ${getPnlColor(order.pnl)}">
                         ${order.pnl ? formatMoney(order.pnl) : '-'}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-zinc-300">
+                        ${order.trailing_stoploss ? formatMoney(order.trailing_stoploss) : '-'}
                     </td>
                 </tr>
             `).join('');

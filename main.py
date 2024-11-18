@@ -18,13 +18,16 @@ async def main():
     trade_manager = TradeManager(
         symbol=symbol, interval=interval,
         fee_percent = 0.1, capital_per_trade = 100,
-        max_buys = 3, log_file=f"{symbol}_{interval}_log_file.json"
+        max_buys = 3, log_file=f"{symbol}_{interval}_log_file.json",
+        db_path=f"{symbol}_{interval}_trades.db"
     )  
     trader = Erendil(
         limit = 5000, interval = interval, symbol = symbol,
         onclose_callback = trade_manager.handle_candle_close,
         onmessage_callback = trade_manager.handle_price_update
     )
+    
+    await trade_manager.initialize()
     try:
         await trader.run()
         while True:

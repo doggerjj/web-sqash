@@ -227,12 +227,7 @@ class BinanceKlineManager:
     async def process_data_onmessage(self, current_price: float) -> None:
         """Process data received from the websocket"""
         try:
-            asyncio.create_task(
-            asyncio.to_thread(
-                self.onmessage_callback, 
-                current_price
-            )
-        )
+            asyncio.create_task(self.onmessage_callback(current_price))
         except Exception as e:
             logger.error(f"Error in callback processing: {e}")
     
@@ -241,12 +236,7 @@ class BinanceKlineManager:
         # Use historical data for confirmed candles
         if self.historical_data is not None:
             try:
-                asyncio.create_task(
-                asyncio.to_thread(
-                    self.onclose_callback, 
-                    self.historical_data
-                )
-            )
+                asyncio.create_task(self.onclose_callback(self.historical_data))
             except Exception as e:
                 logger.error(f"Error in callback processing: {e}")
     
@@ -333,7 +323,36 @@ class BinanceKlineManager:
         """Stop the websocket stream"""
         self.is_running = False
         
+        
+class Erendil:
+    def __init__(
+        self, 
+        symbol: str, 
+        interval: str, 
+        onclose_callback: Callable[[pl.DataFrame], None], 
+        onmessage_callback: Callable[[pl.DataFrame], None], 
+        limit: int = 1000,
+    ) -> None:
+        self.symbol = symbol
+        symbol = symbol.lower()
+        self.manager = BinanceKlineManager(
+            limit=limit,
+            symbol=symbol,
+            interval=interval,
+            onclose_callback=onclose_callback,
+            onmessage_callback=onmessage_callback
+        )
+        
+    async def run(self) -> None:
+        logger.info(f"Starting trading bot for {self.symbol}")
+        await self.manager.fetch_historical_data()
+        await self.manager.start_websocket_stream()
     
+    async def stop(self) -> None:
+        await self.manager.stop()
+        
+        
+   
 '''
 class BinanceExchange:
     def __init__(self):
@@ -370,31 +389,3 @@ class BinanceExchange:
             await manager.stop()
         self.kline_managers.clear()
 '''
-   
-     
-class Erendil:
-    def __init__(
-        self, 
-        symbol: str, 
-        interval: str, 
-        onclose_callback: Callable[[pl.DataFrame], None], 
-        onmessage_callback: Callable[[pl.DataFrame], None], 
-        limit: int = 1000,
-    ) -> None:
-        self.symbol = symbol
-        symbol = symbol.lower()
-        self.manager = BinanceKlineManager(
-            limit=limit,
-            symbol=symbol,
-            interval=interval,
-            onclose_callback=onclose_callback,
-            onmessage_callback=onmessage_callback
-        )
-        
-    async def run(self) -> None:
-        logger.info(f"Starting trading bot for {self.symbol}")
-        await self.manager.fetch_historical_data()
-        await self.manager.start_websocket_stream()
-    
-    async def stop(self) -> None:
-        await self.manager.stop()

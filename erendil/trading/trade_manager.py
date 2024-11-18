@@ -1,9 +1,12 @@
+import aiofiles
 import polars as pl
-import logging, json
+from asyncio import Lock
+import logging, json, asyncio
 from datetime import datetime
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta, timezone
 from erendil.models.data_models import MarketSignal
+from erendil.database.trade_db import TradeDatabase
 from erendil.trading.position import PositionManager
 from erendil.indicators.buy_sell import BuySellIndicator
 from erendil.indicators.trailing_stop import TrailingStoploss
@@ -13,7 +16,7 @@ logger = logging.getLogger(__name__)
         
 
 class TradeManager:
-    def __init__(self, symbol: str, interval: str, capital_per_trade: float=100, fee_percent: float=0.1, max_buys: int=3, log_file: str = "trade_log.json"):
+    def __init__(self, symbol: str, interval: str, capital_per_trade: float=100, fee_percent: float=0.1, max_buys: int=3, log_file: str = "trade_log.json", db_path: str = "trades.db"):
         self.pnl = 0
         self.buy_count = 0
         self.trade_log = []
@@ -24,35 +27,46 @@ class TradeManager:
         self.log_file = log_file
         self.fee_percent = fee_percent
         self.cached_trailing_stop = None
+        self.db = TradeDatabase(db_path)
         self.stoploss = TrailingStoploss()
         self.indicator = BuySellIndicator()
         self.position_log = PositionManager()
         self.capital_per_trade = capital_per_trade
         
+        self.file_lock = Lock()
+    
+    async def initialize(self):
+        """Initialize the database"""
+        await self.db.initialize()
+        
     def _convert_to_ist(self, utc_time: datetime) -> datetime:
         ist = timezone(timedelta(hours=5, minutes=30))
         return utc_time.astimezone(ist)
     
-    def _save_trade_entry(self, trade_entry: Dict):
-        """Save trade entry to log file using aiofiles"""
-        try:
-            json_data = {
-                "symbol": self.symbol,
-                "trades": [trade_entry],
-                "interval": self.interval,
-            }
+    async def _save_trade_entry(self, trade_entry: Dict):
+        """Save trade entry to both database and log file"""
+        saved_to_db = await self.db.save_trade(trade_entry, self.symbol, self.interval) 
+        if saved_to_db:
             try:
-                with open(self.log_file, 'r') as f:
-                    content = f.read()
-                    json_data = json.loads(content) if content else json_data
-            except FileNotFoundError:
-                pass
-            json_data['trades'].append(trade_entry)
-            with open(self.log_file, 'w') as f:
-                f.write(json.dumps(json_data, indent=2, default=str))
-            logger.debug(f"Trade entry saved successfully to {self.log_file}")
-        except Exception as e:
-            logger.error(f"Error saving trade log: {e}")
+                async with self.file_lock:
+                    json_data = {
+                        "symbol": self.symbol,
+                        "trades": [trade_entry],
+                        "interval": self.interval,
+                    }
+                    try:
+                        async with aiofiles.open(self.log_file, 'r') as f:
+                            content = await f.read()
+                            if content:
+                                json_data = json.loads(content)
+                    except FileNotFoundError:
+                        pass
+                    json_data['trades'].append(trade_entry)
+                    async with aiofiles.open(self.log_file, 'w') as f:
+                        await f.write(json.dumps(json_data, indent=2, default=str))
+                    logger.debug(f"Trade entry saved successfully to {self.log_file}")
+            except Exception as e:
+                logger.error(f"Error saving trade log: {e}")
     
     def _create_trade_entry(self, signal: MarketSignal, action: str, position_size: float, 
         fee: float, pnl: Optional[float] = None) -> Dict:
@@ -71,7 +85,7 @@ class TradeManager:
             "timestamp": self._convert_to_ist(signal.timestamp).isoformat(),
         }
         
-    def buy(self, signal: MarketSignal):
+    async def buy(self, signal: MarketSignal):
         
         # Check if max buys limit reached
         if self.buy_count >= self.max_buys:
@@ -112,9 +126,9 @@ class TradeManager:
         
         # Create and queue trade entry
         trade_entry = self._create_trade_entry(signal, "BUY", position, fee)
-        self._save_trade_entry(trade_entry)
+        await self._save_trade_entry(trade_entry)
             
-    def sell(self, signal: MarketSignal, trailing_stoploss: float):
+    async def sell(self, signal: MarketSignal, trailing_stoploss: float):
         
         # First exit only on candle close signal
         if self.position_log.first_exit_price is None:
@@ -170,20 +184,26 @@ class TradeManager:
             
             # Create and queue trade entry
             trade_entry = self._create_trade_entry(signal, "SELL_SECOND", exit_position, fee, exit_pnl)
-            self._save_trade_entry(trade_entry)
+            await self._save_trade_entry(trade_entry)
     
-    def handle_candle_close(self, df: pl.DataFrame):
+    async def handle_candle_close(self, df: pl.DataFrame):
         """Process completed candle - compute all indicators and signals"""
         if len(df) < max(self.indicator.params.slow_length, self.stoploss.params.hhv_period) + 2:
             return
-            
-        latest_row = df.tail(1)
-        current_price = latest_row['close'][0]
-        latest_timestamp = latest_row['close_time'][0]
         
-        # Compute indicators
-        hist_buy, hist_sell = self.indicator.process_data(df)
-        ts_array, current_ts, prev_ts = self.stoploss.process_data(df)
+        hist_buy, hist_sell, current_ts, current_price, latest_timestamp = None, None, None, None, None
+            
+        def compute():
+            nonlocal hist_buy, hist_sell, current_ts, current_price, latest_timestamp
+            latest_row = df.tail(1)
+            current_price = latest_row['close'][0]
+            latest_timestamp = latest_row['close_time'][0]
+            
+            # Compute indicators
+            hist_buy, hist_sell = self.indicator.process_data(df)
+            ts_array, current_ts, prev_ts = self.stoploss.process_data(df)
+        
+        await asyncio.to_thread(compute)
         
         # Cache trailing stop for real-time checks
         self.cached_trailing_stop = current_ts
@@ -210,7 +230,7 @@ class TradeManager:
                 )
                 self.sell(signal, current_ts)
     
-    def handle_price_update(self, current_price: float):
+    async def handle_price_update(self, current_price: float):
         """Check real-time price against cached trailing stop"""
         
         # Only check after first exit
